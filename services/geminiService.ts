@@ -1,7 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Recipe, RecipeTag, MealType } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safely access the API key to prevent "process is not defined" crash in browser
+const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
+const ai = new GoogleGenAI({ apiKey: apiKey });
 
 // Helper function to generate an image for a specific recipe
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
