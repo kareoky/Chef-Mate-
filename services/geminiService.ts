@@ -1,9 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Recipe, RecipeTag, MealType } from "../types";
 
-// Safely access the API key to prevent "process is not defined" crash in browser
-const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// Initialize the Google GenAI client.
+// We check for process.env.API_KEY, but fall back to the provided key if the environment variable is not set or accessible.
+const getApiKey = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  // Fallback to the key provided by the user
+  return "AIzaSyCUDTITOiTycAlic2YxTOrDWrASMtTzofk";
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 // Helper function to generate an image for a specific recipe
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
@@ -29,8 +37,7 @@ const generateRecipeImage = async (title: string, description: string): Promise<
     // Fallback if no image data found
     return `https://picsum.photos/seed/${Date.now()}/400/300`;
   } catch (error) {
-    console.warn("Image generation failed for", title, error);
-    // Fallback to random image on error
+    // Silently fail for images to not break the flow, return default
     return `https://picsum.photos/seed/${Math.random()}/400/300`;
   }
 };
@@ -104,7 +111,7 @@ export const suggestRecipesFromIngredients = async (
     return await generateRecipesFromPrompt(prompt, model);
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new Error("فشل في جلب الاقتراحات من الذكاء الاصطناعي");
+    throw new Error("فشل في جلب الاقتراحات. تأكد من اتصال الإنترنت وصلاحية المفتاح.");
   }
 };
 
@@ -125,7 +132,7 @@ export const getRecipeByName = async (recipeName: string): Promise<Recipe[]> => 
     return await generateRecipesFromPrompt(prompt, model);
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new Error("فشل في جلب تفاصيل الوصفة");
+    throw new Error("فشل في جلب تفاصيل الوصفة. تأكد من اتصال الإنترنت وصلاحية المفتاح.");
   }
 };
 
