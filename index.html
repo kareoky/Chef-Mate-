@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chef Mate - المساعد الذكي للطبخ</title>
+    
+    <!-- App Icons -->
+    <link rel="icon" type="image/png" href="https://i.ibb.co/YFr0kKPM/Logo.png" />
+    <link rel="apple-touch-icon" href="https://i.ibb.co/YFr0kKPM/Logo.png" />
+    <link rel="manifest" href="manifest.json" />
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Chef Mate">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Tajawal', 'sans-serif'],
+            },
+            colors: {
+              primary: {
+                50: '#fefce8',
+                100: '#fef9c3',
+                500: '#eab308',
+                600: '#ca8a04',
+                700: '#a16207',
+              },
+              secondary: {
+                500: '#22c55e',
+                600: '#16a34a',
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      /* Default to dark mode colors immediately to prevent white flash */
+      body {
+        background-color: #0f172a;
+        color: #f8fafc;
+      }
+      /* Only switch to light if the class is explicitly removed or configured */
+      :not(.dark) body {
+        background-color: #f8fafc;
+        color: #1e293b;
+      }
+      
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1e293b; 
+      }
+      :not(.dark) ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #475569; 
+        border-radius: 4px;
+      }
+      :not(.dark) ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

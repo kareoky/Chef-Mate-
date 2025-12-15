@@ -1,0 +1,21 @@
+{
+  "name": "Chef Mate",
+  "short_name": "Chef Mate",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#eab308",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/YFr0kKPM/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://i.ibb.co/YFr0kKPM/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
