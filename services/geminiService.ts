@@ -2,52 +2,47 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Recipe, RecipeTag, MealType } from "../types";
 
 // Initialize the Google GenAI client.
-// We check for process.env.API_KEY, but fall back to the provided key if the environment variable is not set or accessible.
 const getApiKey = () => {
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
+  // @ts-ignore: Handle potential missing types for import.meta
+  const meta = import.meta as any;
+  if (meta && meta.env && meta.env.VITE_API_KEY) {
+    return meta.env.VITE_API_KEY;
   }
-  // Fallback to the key provided by the user
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.API_KEY) return process.env.API_KEY;
+    if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
+  }
   return "AIzaSyCUDTITOiTycAlic2YxTOrDWrASMtTzofk";
 };
 
 const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
-// Helper function to generate an image for a specific recipe
+// Function to generate image using Gemini (High Quality & Accurate)
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
   try {
-    // Attempt to generate with Gemini
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           {
-            text: `Professional food photography of a dish called "${title}". Description: ${description}. High quality, delicious, cinematic lighting, 4k resolution, appetizing, restaurant style.`
+            text: `Professional food photography of a dish called "${title}". The dish is: ${description}. High quality, delicious, cinematic lighting, 4k resolution, appetizing, restaurant style.`
           },
         ],
       },
     });
 
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        const base64EncodeString = part.inlineData.data;
-        return `data:image/png;base64,${base64EncodeString}`;
+    if (response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          return `data:image/png;base64,${part.inlineData.data}`;
+        }
       }
     }
-    
-    throw new Error("No image data returned from Gemini");
+    throw new Error("No image generated");
   } catch (error) {
-    console.warn("Image generation failed for", title, "using fallback.");
-    
-    // Fallback: Use Pollinations.ai which generates AI images from URL prompts.
-    // This ensures we get a specific image for the dish name even if Gemini fails.
-    // We clean the title and add English keywords to help the generator.
-    const cleanTitle = title.replace(/[^\w\s\u0600-\u06FF]/g, '').slice(0, 50);
-    const prompt = encodeURIComponent(`delicious food dish ${cleanTitle} professional photography`);
-    
-    // Random seed to ensure variety if same dish is requested
-    const seed = Math.floor(Math.random() * 10000);
-    return `https://image.pollinations.ai/prompt/${prompt}?width=800&height=600&nologo=true&seed=${seed}&model=flux`;
+    console.warn("Gemini Image Generation Failed, using fallback placeholder");
+    // Fallback to a generic placeholder only if Gemini completely fails
+    return `https://placehold.co/800x600?text=${encodeURIComponent(title)}`;
   }
 };
 
@@ -69,40 +64,36 @@ export const suggestRecipesFromIngredients = async (
   // Construct constraints based on filters
   let constraints = "";
   
-  // Cuisine Filters
   if (cuisineFilter && cuisineFilter !== 'all') {
     switch (cuisineFilter) {
       case 'egyptian': constraints += " يجب أن تكون الوصفات من المطبخ المصري الأصيل."; break;
-      case 'saudi': constraints += " يجب أن تكون الوصفات من المطبخ السعودي (كبسة، جريش، قرصان، إلخ)."; break;
-      case 'iraqi': constraints += " يجب أن تكون الوصفات من المطبخ العراقي (دولمة، مسكوف، إلخ)."; break;
+      case 'saudi': constraints += " يجب أن تكون الوصفات من المطبخ السعودي."; break;
+      case 'iraqi': constraints += " يجب أن تكون الوصفات من المطبخ العراقي."; break;
       case 'turkish': constraints += " يجب أن تكون الوصفات من المطبخ التركي."; break;
       case 'italian': constraints += " يجب أن تكون الوصفات من المطبخ الإيطالي."; break;
       case 'chinese': constraints += " يجب أن تكون الوصفات من المطبخ الصيني."; break;
-      case 'indian': constraints += " يجب أن تكون الوصفات من المطبخ الهندي الغني بالبهارات."; break;
-      case 'levantine': constraints += " يجب أن تكون الوصفات من المطبخ الشامي (لبناني، سوري)."; break;
+      case 'indian': constraints += " يجب أن تكون الوصفات من المطبخ الهندي."; break;
+      case 'levantine': constraints += " يجب أن تكون الوصفات من المطبخ الشامي."; break;
       default: constraints += ` ركز على وصفات من المطبخ ${cuisineFilter}.`; break;
     }
   } else {
     constraints += " نوع في الاقتراحات بين المطابخ العالمية والعربية.";
   }
 
-  // Meal Type (Breakfast / Lunch / Dinner / Dessert)
   if (mealType === 'breakfast') {
-    constraints += " يجب أن تكون جميع الوصفات مناسبة لوجبة الإفطار (فطار)، مثل أطباق البيض، الفول، المعجنات الصباحية، أو الأطباق الخفيفة.";
+    constraints += " يجب أن تكون جميع الوصفات مناسبة لوجبة الإفطار.";
   } else if (mealType === 'lunch') {
-    constraints += " يجب أن تكون الوصفات مناسبة لوجبة الغداء (أطباق رئيسية، طبخ، أرز، خضار، لحوم).";
+    constraints += " يجب أن تكون الوصفات مناسبة لوجبة الغداء.";
   } else if (mealType === 'dinner') {
-    constraints += " يجب أن تكون الوصفات مناسبة لوجبة العشاء (سواء أطباق خفيفة أو نواشف أو أطباق مناسبة للمساء).";
+    constraints += " يجب أن تكون الوصفات مناسبة لوجبة العشاء.";
   } else if (mealType === 'dessert') {
-    constraints += " يجب أن تكون الوصفات حلويات (شرقية أو غربية)، كيك، حلى بارد، أو مخبوزات حلوة.";
+    constraints += " يجب أن تكون الوصفات حلويات.";
   } else {
-     // Default fallback
      constraints += " يجب أن تكون الوصفات أطباق رئيسية.";
   }
 
-  // Diet Constraint
   if (isDiet) {
-    constraints += " هام جدًا: يجب أن تكون جميع الوصفات صحية، قليلة السعرات الحرارية، ومناسبة للرجيم (Diet Friendly).";
+    constraints += " هام جدًا: يجب أن تكون جميع الوصفات صحية، قليلة السعرات الحرارية، ومناسبة للرجيم.";
   } else {
     constraints += " الوصفات عادية (طعم أصلي) ولا يشترط أن تكون دايت.";
   }
@@ -120,7 +111,7 @@ export const suggestRecipesFromIngredients = async (
     return await generateRecipesFromPrompt(prompt, model);
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new Error("فشل في جلب الاقتراحات. تأكد من اتصال الإنترنت وصلاحية المفتاح.");
+    throw new Error("فشل في جلب الاقتراحات. الشبكة ضعيفة أو الخدمة مشغولة.");
   }
 };
 
@@ -141,12 +132,13 @@ export const getRecipeByName = async (recipeName: string): Promise<Recipe[]> => 
     return await generateRecipesFromPrompt(prompt, model);
   } catch (error) {
     console.error("Gemini API Error:", error);
-    throw new Error("فشل في جلب تفاصيل الوصفة. تأكد من اتصال الإنترنت وصلاحية المفتاح.");
+    throw new Error("فشل في جلب تفاصيل الوصفة. تأكد من الاتصال.");
   }
 };
 
 // Common helper to handle the API call and parsing
 const generateRecipesFromPrompt = async (prompt: string, model: string): Promise<Recipe[]> => {
+    // 1. Generate Text (Recipe Details)
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
@@ -198,19 +190,18 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
 
     const rawRecipes = JSON.parse(response.text || "[]");
     
-    // Generate Images sequentially to avoid API Rate Limits
-    const recipesWithImages: Recipe[] = [];
-    
-    for (let i = 0; i < rawRecipes.length; i++) {
-        const r = rawRecipes[i];
+    // 2. Generate Images using Gemini (High Quality)
+    // We iterate and wait for each image to ensure it's generated by Gemini
+    const recipesWithImages = await Promise.all(
+      rawRecipes.map(async (r: any, index: number) => {
         const title = r.title || "وصفة شهية";
         const description = r.description || "وصفة لذيذة ومميزة";
         
-        // Wait for image generation to finish before moving to the next (Sequential)
+        // Call Gemini for the image
         const aiImage = await generateRecipeImage(title, description);
         
-        recipesWithImages.push({
-          id: `gen-${Date.now()}-${i}`,
+        return {
+          id: `gen-${Date.now()}-${index}`,
           title: title,
           description: description,
           ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
@@ -222,8 +213,9 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
           cuisine: r.cuisine,
           cookingMethod: r.cookingMethod,
           dietaryRestrictions: Array.isArray(r.dietaryRestrictions) ? r.dietaryRestrictions : []
-        });
-    }
+        };
+      })
+    );
 
     return recipesWithImages;
 };
