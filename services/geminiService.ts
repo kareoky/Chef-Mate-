@@ -34,11 +34,13 @@ const generateRecipeImage = async (title: string, description: string): Promise<
       }
     }
     
-    // Fallback if no image data found
-    return `https://picsum.photos/seed/${Date.now()}/400/300`;
+    throw new Error("No image data returned");
   } catch (error) {
-    // Silently fail for images to not break the flow, return default
-    return `https://picsum.photos/seed/${Math.random()}/400/300`;
+    console.warn("Image generation failed for", title, error);
+    // Fallback to food-specific placeholder images instead of random photos
+    // using loremflickr with food keywords
+    const randomParam = Math.floor(Math.random() * 1000);
+    return `https://loremflickr.com/400/300/food,dish,meal?lock=${randomParam}`;
   }
 };
 
@@ -189,16 +191,19 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
 
     const rawRecipes = JSON.parse(response.text || "[]");
     
-    // Generate Images for each recipe in parallel
-    const recipesWithImages = await Promise.all(
-      rawRecipes.map(async (r: any, index: number) => {
-        // Generate a unique AI image for this recipe
+    // Generate Images sequentially to avoid API Rate Limits
+    const recipesWithImages: Recipe[] = [];
+    
+    for (let i = 0; i < rawRecipes.length; i++) {
+        const r = rawRecipes[i];
         const title = r.title || "وصفة شهية";
         const description = r.description || "وصفة لذيذة ومميزة";
+        
+        // Wait for image generation to finish before moving to the next (Sequential)
         const aiImage = await generateRecipeImage(title, description);
         
-        return {
-          id: `gen-${Date.now()}-${index}`,
+        recipesWithImages.push({
+          id: `gen-${Date.now()}-${i}`,
           title: title,
           description: description,
           ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
@@ -210,9 +215,8 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
           cuisine: r.cuisine,
           cookingMethod: r.cookingMethod,
           dietaryRestrictions: Array.isArray(r.dietaryRestrictions) ? r.dietaryRestrictions : []
-        };
-      })
-    );
+        });
+    }
 
     return recipesWithImages;
 };
