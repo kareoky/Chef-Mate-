@@ -16,6 +16,7 @@ const ai = new GoogleGenAI({ apiKey: getApiKey() });
 // Helper function to generate an image for a specific recipe
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
   try {
+    // Attempt to generate with Gemini
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -34,13 +35,19 @@ const generateRecipeImage = async (title: string, description: string): Promise<
       }
     }
     
-    throw new Error("No image data returned");
+    throw new Error("No image data returned from Gemini");
   } catch (error) {
-    console.warn("Image generation failed for", title, error);
-    // Fallback to food-specific placeholder images instead of random photos
-    // using loremflickr with food keywords
-    const randomParam = Math.floor(Math.random() * 1000);
-    return `https://loremflickr.com/400/300/food,dish,meal?lock=${randomParam}`;
+    console.warn("Image generation failed for", title, "using fallback.");
+    
+    // Fallback: Use Pollinations.ai which generates AI images from URL prompts.
+    // This ensures we get a specific image for the dish name even if Gemini fails.
+    // We clean the title and add English keywords to help the generator.
+    const cleanTitle = title.replace(/[^\w\s\u0600-\u06FF]/g, '').slice(0, 50);
+    const prompt = encodeURIComponent(`delicious food dish ${cleanTitle} professional photography`);
+    
+    // Random seed to ensure variety if same dish is requested
+    const seed = Math.floor(Math.random() * 10000);
+    return `https://image.pollinations.ai/prompt/${prompt}?width=800&height=600&nologo=true&seed=${seed}&model=flux`;
   }
 };
 
