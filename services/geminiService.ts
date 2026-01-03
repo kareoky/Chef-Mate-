@@ -1,98 +1,134 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Recipe, RecipeTag, MealType } from "../types";
 
-// وظيفة آمنة لجلب مفتاح API لتجنب انهيار التطبيق في المتصفح
-const getApiKey = () => {
-  try {
-    // محاولة جلب المفتاح من Netlify environment أو أي متغير متاح
-    return process.env.API_KEY || "";
-  } catch (e) {
-    console.warn("API_KEY not found in process.env");
-    return "";
-  }
-};
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const apiKey = getApiKey();
-
-/**
- * توليد صورة احترافية لكل وصفة
- */
+// Helper function to generate an image for a specific recipe
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
-  if (!apiKey) return `https://placehold.co/800x600/1e293b/white?text=${encodeURIComponent(title)}`;
-
   try {
-    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           {
-            text: `Professional food photography of "${title}". ${description}. High resolution, 4k, delicious, appetizing, restaurant plating, cinematic lighting.`
+            text: `Professional food photography of a dish called "${title}". Description: ${description}. High quality, delicious, cinematic lighting, 4k resolution, appetizing, restaurant style.`
           },
         ],
       },
     });
 
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          return `data:image/png;base64,${part.inlineData.data}`;
-        }
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        const base64EncodeString = part.inlineData.data;
+        return `data:image/png;base64,${base64EncodeString}`;
       }
     }
-    throw new Error("No image data");
+    
+    // Fallback if no image data found
+    return `https://picsum.photos/seed/${Date.now()}/400/300`;
   } catch (error) {
-    console.error(`Image Error for ${title}:`, error);
-    return `https://placehold.co/800x600/1e293b/white?text=${encodeURIComponent(title)}`;
+    console.warn("Image generation failed for", title, error);
+    // Fallback to random image on error
+    return `https://picsum.photos/seed/${Math.random()}/400/300`;
   }
 };
 
-/**
- * اقتراح وصفات بناءً على المكونات
- */
 export const suggestRecipesFromIngredients = async (
   ingredients: string[],
   cuisineFilter?: string,
   mealType?: MealType,
   isDiet?: boolean
 ): Promise<Recipe[]> => {
-  if (!apiKey) {
-    throw new Error("مفتاح الـ API غير موجود. يرجى إضافته في إعدادات Netlify باسم API_KEY");
+  const model = "gemini-2.5-flash";
+  
+  let ingredientsText = "";
+  if (ingredients.length > 0) {
+    ingredientsText = `باستخدام المكونات التالية: ${ingredients.join(", ")} (ويمكن إضافة مكونات أساسية أخرى).`;
+  } else {
+    ingredientsText = "اقترح وصفات عامة ومشهورة.";
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  const model = "gemini-3-flash-preview";
+  // Construct constraints based on filters
+  let constraints = "";
   
-  let ingredientsText = ingredients.length > 0 
-    ? `المكونات المتوفرة: ${ingredients.join(", ")}.` 
-    : "اقترح وصفات عامة مشهورة.";
+  // Cuisine Filters
+  if (cuisineFilter && cuisineFilter !== 'all') {
+    switch (cuisineFilter) {
+      case 'egyptian': constraints += " يجب أن تكون الوصفات من المطبخ المصري الأصيل."; break;
+      case 'saudi': constraints += " يجب أن تكون الوصفات من المطبخ السعودي (كبسة، جريش، قرصان، إلخ)."; break;
+      case 'iraqi': constraints += " يجب أن تكون الوصفات من المطبخ العراقي (دولمة، مسكوف، إلخ)."; break;
+      case 'turkish': constraints += " يجب أن تكون الوصفات من المطبخ التركي."; break;
+      case 'italian': constraints += " يجب أن تكون الوصفات من المطبخ الإيطالي."; break;
+      case 'chinese': constraints += " يجب أن تكون الوصفات من المطبخ الصيني."; break;
+      case 'indian': constraints += " يجب أن تكون الوصفات من المطبخ الهندي الغني بالبهارات."; break;
+      case 'levantine': constraints += " يجب أن تكون الوصفات من المطبخ الشامي (لبناني، سوري)."; break;
+      default: constraints += ` ركز على وصفات من المطبخ ${cuisineFilter}.`; break;
+    }
+  } else {
+    constraints += " نوع في الاقتراحات بين المطابخ العالمية والعربية.";
+  }
 
-  let constraints = `المطبخ: ${cuisineFilter || 'عالمي'}. الوجبة: ${mealType || 'رئيسية'}. ${isDiet ? 'يجب أن تكون صحية ودايت.' : ''}`;
+  // Meal Type (Breakfast / Lunch / Dinner / Dessert)
+  if (mealType === 'breakfast') {
+    constraints += " يجب أن تكون جميع الوصفات مناسبة لوجبة الإفطار (فطار)، مثل أطباق البيض، الفول، المعجنات الصباحية، أو الأطباق الخفيفة.";
+  } else if (mealType === 'lunch') {
+    constraints += " يجب أن تكون الوصفات مناسبة لوجبة الغداء (أطباق رئيسية، طبخ، أرز، خضار، لحوم).";
+  } else if (mealType === 'dinner') {
+    constraints += " يجب أن تكون الوصفات مناسبة لوجبة العشاء (سواء أطباق خفيفة أو نواشف أو أطباق مناسبة للمساء).";
+  } else if (mealType === 'dessert') {
+    constraints += " يجب أن تكون الوصفات حلويات (شرقية أو غربية)، كيك، حلى بارد، أو مخبوزات حلوة.";
+  } else {
+     // Default fallback
+     constraints += " يجب أن تكون الوصفات أطباق رئيسية.";
+  }
 
-  const prompt = `أنت شيف محترف. ${ingredientsText} ${constraints} 
-  المطلوب: اقترح 5 وصفات بصيغة JSON باللغة العربية فقط. 
-  تأكد أن الرد عبارة عن مصفوفة JSON تحتوي على الحقول: title, description, ingredients, steps, prepTime, calories, tags, cuisine.`;
+  // Diet Constraint
+  if (isDiet) {
+    constraints += " هام جدًا: يجب أن تكون جميع الوصفات صحية، قليلة السعرات الحرارية، ومناسبة للرجيم (Diet Friendly).";
+  } else {
+    constraints += " الوصفات عادية (طعم أصلي) ولا يشترط أن تكون دايت.";
+  }
 
-  return await generateRecipesFromPrompt(ai, prompt, model);
+  const prompt = `
+    أنت شيف ذكي ومساعد محترف في المطبخ.
+    ${ingredientsText}
+    ${constraints}
+    
+    المطلوب: اقترح 5 وصفات مميزة وجذابة بدقة عالية.
+    قم بالرد بصيغة JSON فقط.
+  `;
+
+  try {
+    return await generateRecipesFromPrompt(prompt, model);
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    throw new Error("فشل في جلب الاقتراحات من الذكاء الاصطناعي");
+  }
 };
 
-/**
- * جلب تفاصيل وصفة معينة
- */
 export const getRecipeByName = async (recipeName: string): Promise<Recipe[]> => {
-  if (!apiKey) throw new Error("API Key is missing.");
+  const model = "gemini-2.5-flash";
+  const prompt = `
+    أنت شيف محترف. المستخدم يريد معرفة طريقة عمل: "${recipeName}".
+    
+    المطلوب:
+    1. قدم وصفة دقيقة ومفصلة لطبق "${recipeName}" بأفضل طريقة ممكنة.
+    2. تأكد من ذكر جميع المكونات والخطوات بوضوح.
+    3. إذا كان للطبق أنواع مختلفة، اختر الأشهر والألذ.
+    
+    قم بالرد بصيغة JSON تحتوي على عنصر واحد فقط داخل مصفوفة.
+  `;
 
-  const ai = new GoogleGenAI({ apiKey });
-  const model = "gemini-3-flash-preview";
-  const prompt = `قدم طريقة عمل وصفة "${recipeName}" بالتفصيل بصيغة JSON داخل مصفوفة تحتوي على عنصر واحد باللغة العربية.`;
-
-  return await generateRecipesFromPrompt(ai, prompt, model);
+  try {
+    return await generateRecipesFromPrompt(prompt, model);
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    throw new Error("فشل في جلب تفاصيل الوصفة");
+  }
 };
 
-/**
- * معالج الطلبات الرئيسي
- */
-const generateRecipesFromPrompt = async (ai: any, prompt: string, model: string): Promise<Recipe[]> => {
+// Common helper to handle the API call and parsing
+const generateRecipesFromPrompt = async (prompt: string, model: string): Promise<Recipe[]> => {
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
@@ -103,8 +139,8 @@ const generateRecipesFromPrompt = async (ai: any, prompt: string, model: string)
           items: {
             type: Type.OBJECT,
             properties: {
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
+              title: { type: Type.STRING, description: "اسم الوصفة بالعربية" },
+              description: { type: Type.STRING, description: "وصف قصير للطبق" },
               ingredients: {
                 type: Type.ARRAY,
                 items: {
@@ -116,10 +152,25 @@ const generateRecipesFromPrompt = async (ai: any, prompt: string, model: string)
                 },
               },
               steps: { type: Type.ARRAY, items: { type: Type.STRING } },
-              prepTime: { type: Type.NUMBER },
-              calories: { type: Type.NUMBER },
-              tags: { type: Type.ARRAY, items: { type: Type.STRING } },
-              cuisine: { type: Type.STRING }
+              prepTime: { type: Type.NUMBER, description: "وقت التحضير بالدقائق" },
+              calories: { type: Type.NUMBER, description: "السعرات الحرارية التقريبية" },
+              tags: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING },
+                description: "مثل: نباتي، دايت، سريع، اقتصادي، حلويات"
+              },
+              cuisine: { 
+                type: Type.STRING, 
+                description: "نوع المطبخ: مصري، سعودي، عراقي، إيطالي" 
+              },
+              cookingMethod: { 
+                type: Type.STRING, 
+                description: "طريقة الطهي" 
+              },
+              dietaryRestrictions: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING }
+              }
             },
             required: ["title", "description", "ingredients", "steps", "prepTime", "calories", "tags"],
           },
@@ -127,33 +178,32 @@ const generateRecipesFromPrompt = async (ai: any, prompt: string, model: string)
       },
     });
 
-    let rawRecipes = [];
-    try {
-      rawRecipes = JSON.parse(response.text || "[]");
-    } catch (e) {
-      console.error("JSON Parse error:", e);
-      return [];
-    }
+    const rawRecipes = JSON.parse(response.text || "[]");
     
-    const finalRecipes: Recipe[] = [];
-    for (let i = 0; i < rawRecipes.length; i++) {
-      const r = rawRecipes[i];
-      // توليد صورة لكل وصفة
-      const aiImage = await generateRecipeImage(r.title, r.description);
-      
-      finalRecipes.push({
-        id: `recipe-${Date.now()}-${i}`,
-        title: r.title || "وصفة جديدة",
-        description: r.description || "",
-        ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
-        steps: Array.isArray(r.steps) ? r.steps : [],
-        prepTime: r.prepTime || 30,
-        calories: r.calories || 0,
-        image: aiImage,
-        tags: Array.isArray(r.tags) ? r.tags : [],
-        cuisine: r.cuisine
-      });
-    }
+    // Generate Images for each recipe in parallel
+    const recipesWithImages = await Promise.all(
+      rawRecipes.map(async (r: any, index: number) => {
+        // Generate a unique AI image for this recipe
+        const title = r.title || "وصفة شهية";
+        const description = r.description || "وصفة لذيذة ومميزة";
+        const aiImage = await generateRecipeImage(title, description);
+        
+        return {
+          id: `gen-${Date.now()}-${index}`,
+          title: title,
+          description: description,
+          ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+          steps: Array.isArray(r.steps) ? r.steps : [],
+          prepTime: r.prepTime || 15,
+          calories: r.calories || 0,
+          image: aiImage,
+          tags: Array.isArray(r.tags) ? r.tags.map((t: string) => t as unknown as RecipeTag) : [],
+          cuisine: r.cuisine,
+          cookingMethod: r.cookingMethod,
+          dietaryRestrictions: Array.isArray(r.dietaryRestrictions) ? r.dietaryRestrictions : []
+        };
+      })
+    );
 
-    return finalRecipes;
+    return recipesWithImages;
 };
