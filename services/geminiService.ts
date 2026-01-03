@@ -1,13 +1,12 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Recipe, RecipeTag, MealType } from "../types";
 
-/**
- * Always use the API key from environment variables.
- */
+// استخدام مفتاح البيئة مباشرة كما هو مطلوب
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
- * Generates a highly accurate image for a specific recipe using Gemini.
+ * توليد صورة احترافية لكل وصفة بناءً على عنوانها ووصفها
  */
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
   try {
@@ -16,7 +15,7 @@ const generateRecipeImage = async (title: string, description: string): Promise<
       contents: {
         parts: [
           {
-            text: `Professional food photography of the dish "${title}". ${description}. High resolution, 4k, delicious looking, cinematic lighting, restaurant plating, centered.`
+            text: `Professional food photography of the dish "${title}". Description: ${description}. High resolution, 4k, delicious, appetizing, restaurant plating, cinematic lighting.`
           },
         ],
       },
@@ -29,14 +28,17 @@ const generateRecipeImage = async (title: string, description: string): Promise<
         }
       }
     }
-    throw new Error("No image part found");
+    throw new Error("No image generated");
   } catch (error) {
-    console.error(`Gemini Image Error for ${title}:`, error);
-    // Use a clean placeholder only as a last resort
+    console.error(`Error generating image for ${title}:`, error);
+    // رابط احتياطي في حالة الفشل التام فقط
     return `https://placehold.co/800x600/1e293b/white?text=${encodeURIComponent(title)}`;
   }
 };
 
+/**
+ * اقتراح وصفات بناءً على المكونات المتوفرة
+ */
 export const suggestRecipesFromIngredients = async (
   ingredients: string[],
   cuisineFilter?: string,
@@ -46,35 +48,33 @@ export const suggestRecipesFromIngredients = async (
   const model = "gemini-3-flash-preview";
   
   let ingredientsText = ingredients.length > 0 
-    ? `المكونات المتوفرة: ${ingredients.join(", ")}.` 
-    : "اقترح وصفات عامة مشهورة.";
+    ? `المكونات المتوفرة لدي هي: ${ingredients.join(", ")}.` 
+    : "اقترح عليّ أفضل الوصفات المشهورة.";
 
-  let constraints = `المطبخ: ${cuisineFilter || 'عالمي'}. الوجبة: ${mealType || 'رئيسية'}. ${isDiet ? 'يجب أن تكون صحية ودايت.' : ''}`;
+  let constraints = `نوع المطبخ: ${cuisineFilter || 'متنوع'}. نوع الوجبة: ${mealType || 'رئيسية'}. ${isDiet ? 'يجب أن تكون الوصفات صحية ومناسبة للدايت.' : ''}`;
 
-  const prompt = `أنت شيف محترف. ${ingredientsText} ${constraints} اقترح 5 وصفات بصيغة JSON.`;
+  const prompt = `أنت شيف محترف ومساعد ذكي. ${ingredientsText} ${constraints}
+  المطلوب: اقترح 5 وصفات عربية أو عالمية مميزة. 
+  يجب أن يكون الرد بصيغة JSON حصراً وباللغة العربية الفصحى.`;
 
-  try {
-    return await generateRecipesFromPrompt(prompt, model);
-  } catch (error) {
-    console.error("Gemini Text API Error:", error);
-    throw new Error("فشل في جلب الوصفات. يرجى التحقق من اتصالك.");
-  }
+  return await generateRecipesFromPrompt(prompt, model);
 };
 
+/**
+ * جلب تفاصيل وصفة معينة بالاسم
+ */
 export const getRecipeByName = async (recipeName: string): Promise<Recipe[]> => {
   const model = "gemini-3-flash-preview";
-  const prompt = `قدم طريقة عمل وصفة "${recipeName}" بالتفصيل بصيغة JSON داخل مصفوفة تحتوي على عنصر واحد.`;
+  const prompt = `أنت شيف محترف. قدم لي طريقة عمل وصفة "${recipeName}" بالتفصيل الممل مع المكونات والخطوات.
+  يجب أن يكون الرد بصيغة JSON داخل مصفوفة تحتوي على عنصر واحد فقط باللغة العربية.`;
 
-  try {
-    return await generateRecipesFromPrompt(prompt, model);
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw new Error("فشل في جلب تفاصيل الوصفة.");
-  }
+  return await generateRecipesFromPrompt(prompt, model);
 };
 
+/**
+ * معالج طلبات Gemini لتحويل النصوص إلى وصفات وصور
+ */
 const generateRecipesFromPrompt = async (prompt: string, model: string): Promise<Recipe[]> => {
-    // 1. Get Recipe Details (Text)
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
@@ -85,8 +85,8 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
           items: {
             type: Type.OBJECT,
             properties: {
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
+              title: { type: Type.STRING, description: "اسم الوصفة بالعربية" },
+              description: { type: Type.STRING, description: "وصف جذاب للوصفة" },
               ingredients: {
                 type: Type.ARRAY,
                 items: {
@@ -98,12 +98,10 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
                 },
               },
               steps: { type: Type.ARRAY, items: { type: Type.STRING } },
-              prepTime: { type: Type.NUMBER },
-              calories: { type: Type.NUMBER },
+              prepTime: { type: Type.NUMBER, description: "الوقت بالدقائق" },
+              calories: { type: Type.NUMBER, description: "السعرات الحرارية" },
               tags: { type: Type.ARRAY, items: { type: Type.STRING } },
               cuisine: { type: Type.STRING },
-              cookingMethod: { type: Type.STRING },
-              dietaryRestrictions: { type: Type.ARRAY, items: { type: Type.STRING } }
             },
             required: ["title", "description", "ingredients", "steps", "prepTime", "calories", "tags"],
           },
@@ -113,31 +111,26 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
 
     const rawRecipes = JSON.parse(response.text || "[]");
     
-    // 2. Generate Images SEQUENTIALLY to avoid Rate Limits (429)
-    // Generating images one by one is safer and ensures quality
+    // توليد الصور بالتتابع لضمان الجودة وعدم تجاوز حدود الـ API
     const finalRecipes: Recipe[] = [];
-    
     for (let i = 0; i < rawRecipes.length; i++) {
       const r = rawRecipes[i];
       const title = r.title || "وصفة شهية";
-      const description = r.description || "وصفة لذيذة ومميزة";
+      const description = r.description || "وصفة رائعة";
       
-      // Wait for Gemini to generate the image
       const aiImage = await generateRecipeImage(title, description);
       
       finalRecipes.push({
-        id: `gen-${Date.now()}-${i}`,
+        id: `recipe-${Date.now()}-${i}`,
         title: title,
         description: description,
         ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
         steps: Array.isArray(r.steps) ? r.steps : [],
-        prepTime: r.prepTime || 15,
-        calories: r.calories || 0,
+        prepTime: r.prepTime || 20,
+        calories: r.calories || 300,
         image: aiImage,
-        tags: Array.isArray(r.tags) ? r.tags.map((t: string) => t as unknown as RecipeTag) : [],
-        cuisine: r.cuisine,
-        cookingMethod: r.cookingMethod,
-        dietaryRestrictions: Array.isArray(r.dietaryRestrictions) ? r.dietaryRestrictions : []
+        tags: Array.isArray(r.tags) ? r.tags : [],
+        cuisine: r.cuisine
       });
     }
 
