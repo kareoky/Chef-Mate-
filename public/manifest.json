@@ -1,0 +1,26 @@
+{
+  "name": "Chef Mate - المساعد الذكي للطبخ",
+  "short_name": "Chef Mate",
+  "description": "المساعد الذكي للطبخ - اكتشف وصفات لذيذة وابدأ الطبخ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/YFr0kKPM/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://i.ibb.co/YFr0kKPM/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
