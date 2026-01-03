@@ -1,17 +1,27 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Recipe, RecipeTag, MealType } from "../types";
 
-// التأكد من جلب المفتاح بشكل صحيح من بيئة العمل
-const apiKey = process.env.API_KEY || "";
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// وظيفة آمنة لجلب مفتاح API لتجنب انهيار التطبيق في المتصفح
+const getApiKey = () => {
+  try {
+    // محاولة جلب المفتاح من Netlify environment أو أي متغير متاح
+    return process.env.API_KEY || "";
+  } catch (e) {
+    console.warn("API_KEY not found in process.env");
+    return "";
+  }
+};
+
+const apiKey = getApiKey();
 
 /**
- * توليد صورة احترافية لكل وصفة بناءً على عنوانها ووصفها
+ * توليد صورة احترافية لكل وصفة
  */
 const generateRecipeImage = async (title: string, description: string): Promise<string> => {
-  if (!ai) return `https://placehold.co/800x600/1e293b/white?text=${encodeURIComponent(title)}`;
+  if (!apiKey) return `https://placehold.co/800x600/1e293b/white?text=${encodeURIComponent(title)}`;
 
   try {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -33,13 +43,12 @@ const generateRecipeImage = async (title: string, description: string): Promise<
     throw new Error("No image data");
   } catch (error) {
     console.error(`Image Error for ${title}:`, error);
-    // Fallback to a nice placeholder if AI generation fails
     return `https://placehold.co/800x600/1e293b/white?text=${encodeURIComponent(title)}`;
   }
 };
 
 /**
- * اقتراح وصفات بناءً على المكونات المتوفرة
+ * اقتراح وصفات بناءً على المكونات
  */
 export const suggestRecipesFromIngredients = async (
   ingredients: string[],
@@ -47,8 +56,11 @@ export const suggestRecipesFromIngredients = async (
   mealType?: MealType,
   isDiet?: boolean
 ): Promise<Recipe[]> => {
-  if (!ai) throw new Error("API Key is missing. Please check your configuration.");
+  if (!apiKey) {
+    throw new Error("مفتاح الـ API غير موجود. يرجى إضافته في إعدادات Netlify باسم API_KEY");
+  }
 
+  const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-flash-preview";
   
   let ingredientsText = ingredients.length > 0 
@@ -59,29 +71,28 @@ export const suggestRecipesFromIngredients = async (
 
   const prompt = `أنت شيف محترف. ${ingredientsText} ${constraints} 
   المطلوب: اقترح 5 وصفات بصيغة JSON باللغة العربية فقط. 
-  تأكد أن أسماء الحقول في الـ JSON مطابقة تماماً لما يلي: title, description, ingredients, steps, prepTime, calories, tags, cuisine.`;
+  تأكد أن الرد عبارة عن مصفوفة JSON تحتوي على الحقول: title, description, ingredients, steps, prepTime, calories, tags, cuisine.`;
 
-  return await generateRecipesFromPrompt(prompt, model);
+  return await generateRecipesFromPrompt(ai, prompt, model);
 };
 
 /**
- * جلب تفاصيل وصفة معينة بالاسم
+ * جلب تفاصيل وصفة معينة
  */
 export const getRecipeByName = async (recipeName: string): Promise<Recipe[]> => {
-  if (!ai) throw new Error("API Key is missing.");
+  if (!apiKey) throw new Error("API Key is missing.");
 
+  const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-flash-preview";
   const prompt = `قدم طريقة عمل وصفة "${recipeName}" بالتفصيل بصيغة JSON داخل مصفوفة تحتوي على عنصر واحد باللغة العربية.`;
 
-  return await generateRecipesFromPrompt(prompt, model);
+  return await generateRecipesFromPrompt(ai, prompt, model);
 };
 
 /**
- * معالج طلبات Gemini لتحويل النصوص إلى وصفات وصور بشكل متسلسل
+ * معالج الطلبات الرئيسي
  */
-const generateRecipesFromPrompt = async (prompt: string, model: string): Promise<Recipe[]> => {
-    if (!ai) return [];
-
+const generateRecipesFromPrompt = async (ai: any, prompt: string, model: string): Promise<Recipe[]> => {
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
@@ -116,21 +127,27 @@ const generateRecipesFromPrompt = async (prompt: string, model: string): Promise
       },
     });
 
-    const rawRecipes = JSON.parse(response.text || "[]");
+    let rawRecipes = [];
+    try {
+      rawRecipes = JSON.parse(response.text || "[]");
+    } catch (e) {
+      console.error("JSON Parse error:", e);
+      return [];
+    }
     
-    // توليد الصور بالتتابع لضمان الجودة وعدم تجاوز حدود الطلبات
     const finalRecipes: Recipe[] = [];
     for (let i = 0; i < rawRecipes.length; i++) {
       const r = rawRecipes[i];
+      // توليد صورة لكل وصفة
       const aiImage = await generateRecipeImage(r.title, r.description);
       
       finalRecipes.push({
         id: `recipe-${Date.now()}-${i}`,
-        title: r.title,
-        description: r.description,
+        title: r.title || "وصفة جديدة",
+        description: r.description || "",
         ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
         steps: Array.isArray(r.steps) ? r.steps : [],
-        prepTime: r.prepTime || 20,
+        prepTime: r.prepTime || 30,
         calories: r.calories || 0,
         image: aiImage,
         tags: Array.isArray(r.tags) ? r.tags : [],
